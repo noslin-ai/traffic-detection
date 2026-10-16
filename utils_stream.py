@@ -37,13 +37,14 @@ class StreamHandler(BaseHTTPRequestHandler):
             self.send_header("Access-Control-Allow-Origin", "*")
             self.send_header('Cache-Control', 'no-cache, private')
             self.send_header('Pragma', 'no-cache')
-            self.send_header('Content-Type', 'multipart/x-mixed-replace; boundary=--frame')
+            self.send_header('Content-Type', 'multipart/x-mixed-replace; boundary=frame')
             self.end_headers()
             while True:
                 with _frame_lock:
-                    if _cur_frame is None:
-                        continue
                     data = _cur_frame
+                if data is None:
+                    time.sleep(0.05)
+                    continue
                 try:
                     self.wfile.write(b"--frame\r\n")
                     self.send_header("Access-Control-Allow-Origin", "*")
@@ -92,5 +93,9 @@ def run_server(port=8080):
     srv.serve_forever()
 
 def start_stream_server(port=8080):
-    t = threading.Thread(target=run_server, args=(port,), daemon=True)
+    # Bind synchronously so port conflicts reach the caller.
+    server = ThreadingHTTPServer(('', port), StreamHandler)
+    t = threading.Thread(target=server.serve_forever, daemon=True)
     t.start()
+    print(f'stream started at http://<board_ip>:{port}/video_feed')
+    return server
