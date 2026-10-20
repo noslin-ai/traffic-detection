@@ -4,6 +4,7 @@ import queue
 import threading
 import time
 from pathlib import Path
+from utils_stream import start_stream_server, update_frame, get_control_state, reset_ff
 
 PROJECT_DIR = Path(__file__).resolve().parent
 yolo_file = PROJECT_DIR / 'yolo11.rknn'
@@ -65,12 +66,48 @@ def guarded(target, *args):
 
 def read_frames(cap):
     while not stop_event.is_set():
+        # 获取全局状态
+        ctrl = get_control_state()
+
+        # 1. 处理暂停
+        if ctrl['paused']:
+            time.sleep(0.1)
+            continue
+
         ret, frame = cap.read()
         if not ret:
-            send(q_raw, None)
-            break
+            cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            continue
+
+        # 2. 处理快进（一次跳过 50 帧）
+        if ctrl['ff']:
+            curr_frame = cap.get(cv2.CAP_PROP_POS_FRAMES)
+            cap.set(cv2.CAP_PROP_POS_FRAMES, curr_frame + 50)
+            reset_ff() # 通知全局状态：快进已执行，重置标记
+            continue
+
+        # 3. 正常发送
         send(q_raw, frame)
 
+    while not stop_event.is_set():
+        # 处理暂停
+        if stream_control['paused']:
+            time.sleep(0.1)
+            continue
+
+        ret, frame = cap.read()
+        if not ret:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            continue
+
+        # 处理快进（一次跳过 50 帧，你可以自己调）
+        if stream_control['ff']:
+            curr_frame = cap.get(cv2.CAP_PROP_POS_FRAMES)
+            cap.set(cv2.CAP_PROP_POS_FRAMES, curr_frame + 50)
+            stream_control['ff'] = False # 跳过一次后重置
+            continue
+
+        send(q_raw, frame)
 def yolo_thread(model):
     while True:
         frame = receive(q_raw)
@@ -120,7 +157,7 @@ def show_thread(headless=False):
 
 def main():
     parser = argparse.ArgumentParser(description='Detect traffic objects and attributes in a video.')
-    parser.add_argument('video', nargs='?', default=str(PROJECT_DIR / 'video1.mp4'),
+    parser.add_argument('--video', nargs='?', default=str(PROJECT_DIR / 'video1.mp4'),
                         help='Input video path (default: video1.mp4 beside det.py)')
     parser.add_argument('--check', action='store_true', help='Check input files and imports without loading the NPU')
     parser.add_argument('--headless', action='store_true', help='Only publish HTTP video; do not open a GUI window')

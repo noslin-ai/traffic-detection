@@ -1,6 +1,6 @@
 # 运行说明
 
-程序读取视频，检测车辆和行人并识别属性，输出窗口画面及 `http://设备IP:8080/video_feed`。不保存视频文件。
+程序读取视频，检测车辆和行人并识别属性，输出窗口画面及 `http://设备IP:8080`。不保存视频文件。
 
 ## 环境
 
@@ -15,9 +15,9 @@
 
 ```sh
 python det.py --help
-python det.py /path/to/video.mp4 --check
-python det.py /path/to/video.mp4
-python det.py /path/to/video.mp4 --headless
+python det.py --video /path/to/video.mp4 --check
+python det.py --video /path/to/video.mp4
+python det.py --video /path/to/video.mp4 --headless
 ```
 
 不指定视频时，默认读取脚本旁的 `video1.mp4`。`--check` 仅检查文件与依赖导入，不初始化 NPU，不检查视频解码能力。实际运行才会验证视频打开和模型初始化。按 q 或 Ctrl+C 退出；视频结束后服务关闭。
